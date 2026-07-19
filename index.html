@@ -863,7 +863,7 @@ function computePTW(){
   for(var i=0;i<N;i++){
     SIMRES={};
     for(var k=0;k<REM.length;k++){var n=REM[k];var t=teamsSim(n);SIMRES[n]=Math.random()<0.5?t[0]:t[1];}
-    var champ=SIMRES[104],tot={},cor={},ch={};
+    var champ=SIMRES[104]||winnerOf(104),tot={},cor={},ch={};
     for(var pi=0;pi<players.length;pi++){var pid=players[pi],T=BASE[pid],C=BASEC[pid];
       for(var k2=0;k2<REM.length;k2++){var n2=REM[k2];if(picks[pid][n2]===SIMRES[n2]){T+=RP[n2];C++;if(n2===104)T+=CB;}}
       tot[pid]=T;cor[pid]=C;ch[pid]=(picks[pid]['104']===champ)?1:0;}
@@ -881,10 +881,12 @@ function computePTW(){
 function renderPtw(){
   var host=document.getElementById('v-ptw');
   if(!window.PTW){host.innerHTML='<div class="ptw-head"><h2>🔮 Path to Win</h2></div><div class="ptw-calc">Simulating 25,000 tournaments… ⚽<br>crunching everyone’s odds</div>';setTimeout(function(){computePTW();renderPtw();},30);return;}
-  var P=window.PTW,sel=ptwSel,pct=(sel==='overall')?P.overall:P.cond[sel];
+  var P=window.PTW,sel=ptwSel;
+  if(sel!=='overall'&&P.champs.indexOf(sel)<0)sel='overall';
+  var pct=(sel==='overall')?P.overall:P.cond[sel];
   var players=DATA.players.slice().sort(function(a,b){return (pct[b.id]||0)-(pct[a.id]||0);});
   var chips='<div class="ptw-sel"><button class="pchip'+(sel==='overall'?' on':'')+'" data-ptw="overall">🏆 Overall</button>';
-  P.champs.forEach(function(T){chips+='<button class="pchip'+(sel===T?' on':'')+'" data-ptw="'+T+'">'+fl(T)+' '+T+'</button>';});
+  if(P.champs.length>1){P.champs.forEach(function(T){chips+='<button class="pchip'+(sel===T?' on':'')+'" data-ptw="'+T+'">'+fl(T)+' '+T+'</button>';});}
   chips+='</div>';
   var intro=(sel==='overall')?'Every remaining game is treated as a 50/50 coin flip, played out 25,000 times — so this is who’s best <b>positioned to win the pool</b>, not a prediction of real matches.':'If '+fl(sel)+' <b>'+sel+'</b> wins the title, here’s who takes the pool. ('+fl(sel)+' lifts the trophy in '+Math.round(P.champTotal[sel]/P.N*100)+'% of coin-flip sims.)';
   var rows='';
@@ -1047,15 +1049,21 @@ render();
 #fbb-scrim-fw.on{background:rgba(5,7,15,0.5);}
 #fbb-replay{position:fixed;right:16px;bottom:16px;z-index:9999;font:600 13px/1 'Poppins',system-ui,sans-serif;color:#fff;background:linear-gradient(135deg,#1b2a4a,#0f1b33);border:0;border-radius:999px;padding:11px 18px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35);opacity:.9;transition:opacity .2s ease,transform .2s ease;}
 #fbb-replay:hover{opacity:1;transform:translateY(-1px);}
+#fbb-msg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 6vw;pointer-events:none;z-index:9998;opacity:0;transform:scale(.94);transition:opacity .6s ease,transform .6s ease;}
+#fbb-msg.on{opacity:1;transform:scale(1);transition-delay:1.35s;}
+#fbb-msg .t{font:800 clamp(30px,6.4vw,92px)/1.06 'Poppins',system-ui,sans-serif;color:#fff;letter-spacing:-.01em;text-shadow:0 0 18px rgba(255,255,255,.35),0 0 46px rgba(246,184,0,.55),0 0 96px rgba(246,184,0,.35);}
+#fbb-msg.on .t{animation:fbbGlow 3.2s ease-in-out 1.2s infinite;}
+@keyframes fbbGlow{0%,100%{text-shadow:0 0 18px rgba(255,255,255,.35),0 0 46px rgba(246,184,0,.5),0 0 96px rgba(246,184,0,.3);}50%{text-shadow:0 0 26px rgba(255,255,255,.55),0 0 70px rgba(246,184,0,.8),0 0 130px rgba(246,184,0,.5);}}
 @media (prefers-reduced-motion:reduce){#fbb-fw{transition:none;}}
 </style>
 <div id="fbb-scrim-fw"></div>
 <canvas id="fbb-fw"></canvas>
+<div id="fbb-msg"><span class="t">June Doesn't Care So Dad Wins!</span></div>
 <button id="fbb-replay" type="button">Replay</button>
 <script>
 (function(){
   var canvas=document.getElementById('fbb-fw'); if(!canvas)return;
-  var ctx=canvas.getContext('2d'), scrim=document.getElementById('fbb-scrim-fw');
+  var ctx=canvas.getContext('2d'), scrim=document.getElementById('fbb-scrim-fw'), msg=document.getElementById('fbb-msg');
   var W,H,DPR;
   function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=canvas.width=Math.floor(innerWidth*DPR);H=canvas.height=Math.floor(innerHeight*DPR);canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';}
   resize(); addEventListener('resize',resize);
@@ -1077,10 +1085,10 @@ render();
     for(var i=rockets.length-1;i>=0;i--){var r=rockets[i];r.vy+=G*dt*0.6;r.x+=r.vx*dt;r.y+=r.vy*dt;ctx.fillStyle=r.color;ctx.beginPath();ctx.arc(r.x,r.y,2.2*DPR,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(255,255,255,.6)';ctx.beginPath();ctx.arc(r.x,r.y+3*DPR,1.1*DPR,0,Math.PI*2);ctx.fill();if(r.vy>=0||r.y<=r.ty){explode(r.x,r.y,r.color);rockets.splice(i,1);}}
     for(var k=sparks.length-1;k>=0;k--){var s=sparks[k];s.vx*=0.985;s.vy*=0.985;s.vy+=G*dt*0.5;s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=s.decay*dt;if(s.life<=0){sparks.splice(k,1);continue;}ctx.globalAlpha=Math.max(s.life,0);ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();}
     ctx.globalAlpha=1;
-    if(active){nextLaunch-=dt*16.67;if(nextLaunch<=0){launch();if(Math.random()<0.4)launch();nextLaunch=rand(480,980);}if(now>=stopAt){active=false;scrim.classList.remove('on');canvas.classList.remove('on');}}
+    if(active){nextLaunch-=dt*16.67;if(nextLaunch<=0){launch();if(Math.random()<0.4)launch();nextLaunch=rand(480,980);}if(now>=stopAt){active=false;scrim.classList.remove('on');canvas.classList.remove('on');if(msg)msg.classList.remove('on');}}
     if(active||rockets.length||sparks.length){raf=requestAnimationFrame(loop);}else{raf=0;last=0;ctx.clearRect(0,0,W,H);}
   }
-  function celebrate(ms){ms=ms||6000;scrim.classList.add('on');canvas.classList.add('on');active=true;stopAt=performance.now()+ms;nextLaunch=0;launch();launch();if(!raf){last=0;raf=requestAnimationFrame(loop);}}
+  function celebrate(ms){ms=ms||6000;scrim.classList.add('on');canvas.classList.add('on');if(msg)msg.classList.add('on');active=true;stopAt=performance.now()+ms;nextLaunch=0;launch();launch();if(!raf){last=0;raf=requestAnimationFrame(loop);}}
   var btn=document.getElementById('fbb-replay'); if(btn)btn.addEventListener('click',function(){celebrate(6000);});
   setTimeout(function(){celebrate(6500);},350);
 })();
