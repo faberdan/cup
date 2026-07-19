@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Champions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; background:#05070f; }
+  body {
+    font-family:'Poppins', system-ui, sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .msg {
+    position:relative; z-index:2; text-align:center; padding:0 6vw;
+    pointer-events:none;
+    opacity:0; transform:scale(.92);
+    animation:reveal 1.4s cubic-bezier(.2,.7,.2,1) .5s forwards;
+  }
+  .msg h1 {
+    font-weight:800;
+    font-size:clamp(34px, 7.2vw, 104px);
+    line-height:1.06;
+    color:#fff;
+    letter-spacing:-.01em;
+    text-shadow:
+      0 0 18px rgba(255,255,255,.35),
+      0 0 46px rgba(246,184,0,.55),
+      0 0 96px rgba(246,184,0,.35);
+    animation:glow 3.4s ease-in-out 2s infinite;
+  }
+  @keyframes reveal { to { opacity:1; transform:scale(1); } }
+  @keyframes glow {
+    0%,100% { text-shadow:0 0 18px rgba(255,255,255,.35),0 0 46px rgba(246,184,0,.5),0 0 96px rgba(246,184,0,.30); }
+    50%     { text-shadow:0 0 26px rgba(255,255,255,.55),0 0 70px rgba(246,184,0,.8),0 0 130px rgba(246,184,0,.5); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .msg { animation:none; opacity:1; transform:none; }
+    .msg h1 { animation:none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="fw"></canvas>
+<div class="msg"><h1>June Doesn't Care So Dad Wins!</h1></div>
+<script>
+(function(){
+  const canvas = document.getElementById('fw');
+  const ctx = canvas.getContext('2d');
+  let W, H, DPR;
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = canvas.width  = Math.floor(innerWidth  * DPR);
+    H = canvas.height = Math.floor(innerHeight * DPR);
+    canvas.style.width  = innerWidth  + 'px';
+    canvas.style.height = innerHeight + 'px';
+  }
+  resize();
+  addEventListener('resize', resize);
+
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const COLORS = ['#f6b800','#ff4d4d','#4da6ff','#54e08a','#c77dff','#ffffff','#ff8fce','#ffd166'];
+  const G = 0.045 * DPR;
+
+  const rand = (a,b) => a + Math.random()*(b-a);
+  const pick = arr => arr[(Math.random()*arr.length)|0];
+
+  const rockets = [];
+  const sparks  = [];
+
+  function launch(){
+    const x = rand(W*0.12, W*0.88);
+    const targetY = rand(H*0.16, H*0.5);
+    const startY = H + 8*DPR;
+    const vy = -Math.sqrt(2*G*(startY-targetY)) * rand(0.98,1.04);
+    rockets.push({ x, y:startY, vx:rand(-0.3,0.3)*DPR, vy, color:pick(COLORS), targetY });
+  }
+
+  function explode(x,y,color){
+    const count = (reduce ? 46 : rand(74,132)) | 0;
+    const speed = rand(2.6,5.2) * DPR;
+    const mixed = Math.random() < 0.35;
+    for(let i=0;i<count;i++){
+      const ang = (Math.PI*2)*(i/count) + rand(-0.08,0.08);
+      const sp  = speed * rand(0.35,1);
+      sparks.push({
+        x, y,
+        vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
+        life:1, decay:rand(0.008,0.018),
+        color: mixed ? pick(COLORS) : color,
+        size: rand(1.4,2.8)*DPR
+      });
+    }
+    for(let i=0;i<12;i++){
+      const ang = rand(0, Math.PI*2), sp = rand(0.5,2)*DPR;
+      sparks.push({ x, y, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp, life:1, decay:rand(0.02,0.04), color:'#fff', size:rand(1.6,3)*DPR });
+    }
+  }
+
+  let last = performance.now();
+  let nextLaunch = 0;
+
+  function frame(now){
+    const dt = Math.min((now-last)/16.67, 2.5); last = now;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(5,7,15,0.20)';
+    ctx.fillRect(0,0,W,H);
+    ctx.globalCompositeOperation = 'lighter';
+
+    for(let i=rockets.length-1;i>=0;i--){
+      const r = rockets[i];
+      r.vy += G*dt*0.6;
+      r.x += r.vx*dt; r.y += r.vy*dt;
+      ctx.fillStyle = r.color;
+      ctx.beginPath(); ctx.arc(r.x, r.y, 2.2*DPR, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.6)';
+      ctx.beginPath(); ctx.arc(r.x, r.y+3*DPR, 1.1*DPR, 0, Math.PI*2); ctx.fill();
+      if(r.vy >= 0 || r.y <= r.targetY){ explode(r.x, r.y, r.color); rockets.splice(i,1); }
+    }
+
+    for(let i=sparks.length-1;i>=0;i--){
+      const s = sparks[i];
+      s.vx *= 0.985; s.vy *= 0.985;
+      s.vy += G*dt*0.5;
+      s.x += s.vx*dt; s.y += s.vy*dt;
+      s.life -= s.decay*dt;
+      if(s.life <= 0){ sparks.splice(i,1); continue; }
+      ctx.globalAlpha = Math.max(s.life, 0);
+      ctx.fillStyle = s.color;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    nextLaunch -= dt*16.67;
+    if(nextLaunch <= 0){
+      launch();
+      if(Math.random() < 0.4) launch();
+      nextLaunch = reduce ? rand(900,1500) : rand(500,1000);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  launch(); launch();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
